@@ -20,7 +20,6 @@ Linked Path:
 
 ## Non-functional requirements
 1) The project does not rely on any external dependencies.
-2) There should be a read me that explains the project, and all of the options available, it should also include a disclaimer that the project was created using AI spec driven development at the top
 
 ## Clarifying Rules
 Pattern Rules:
@@ -31,17 +30,20 @@ Pattern Rules:
 
 
 Linking Rules:
-1. All files and directories under Source Directory are linked recursively.
-2. Existing non-symlink files at the destination cause an error.
-3. Existing symlinks pointing to the correct target are left unchanged.
-4. Existing symlinks pointing elsewhere cause an error.
-5. Hidden files are treated the same as every other file.
-6. Symlinks should always be created using absolute paths not relative ones. From one absolute path to another.
-7. The permissions of the file including the execution bit should be preserved when linking
+1. Links should be created at the highest directory possible, i.e. if a directory can be linked it should be linked instead of linking it's individual files.
+2. make sure to avoid bugs like this when you simlink a directory Error: ~/.config/easy_env/abbrs_and_aliases.conf exists and is a regular file, if you symlink the easy_env directory its contents will appear there, there is no reason to symlink the sub files
+3. Existing non-symlink files at the destination cause an error.
+4. Existing non-symlink directories however do not error and instead there files/subdirectories are symlinked to the new directory, applying all the same linking rules.
+5. Existing symlinks pointing to the correct target are left unchanged.
+6. Existing symlinks pointing elsewhere cause an error.
+7. Hidden files are treated the same as every other file.
+8. Symlinks should always be created using absolute paths not relative ones. From one absolute path to another.
+9. The permissions of the file including the execution bit should be preserved when linking
+10. The linking operation is done very often so any possible optimization should be used
 
 
 Git Rules:
-- The repository root refrened throughout the file is the root of the source directoriiiiiiiiiy
+- The repository root refrened throughout the file is the root of the source directoriy
 - The program must use `git status --porcelain`.
 - Only unstaged changes are considered.
 - Lines starting with '??' indicate new files.
@@ -78,6 +80,8 @@ Do not use os.path.expanduser("~") directly when running under sudo.
 Deterministic Traversal Rule:
 Files must be traversed in lexicographic sorted order
 based on their relative path from the Source Directory.
+Traverse directories first and remember that if a directory gets symlinked from the source dir
+or was already symlniked from the source dir there is no reason to traverse it's children.
 
 Network Failure Definition:
 A push failure is considered network-related if git returns a non-zero exit code and stderr contains:
@@ -114,12 +118,14 @@ For each file F in Source Directory:
 1. Skip if F matches no-sym.
 2. Skip if F is in default exclusions.
 3. Determine destination path D using the path override if there is one
-4. Ensure parent directory of D exists create it if it doesn't.
-5. If D exists:
+4. If D is a directory that is already symlinked from the source then stop traversing down that branch of the file tree
+5. If D is a directory that already exist then don't link it, recurse and link its descendents instead
+6. Ensure parent directory of D exists create it if it doesn't.
+7. If D exists:
    a. If D is a symlink pointing to F → skip.
    b. If D is a symlink pointing elsewhere → error.
    c. If D is a regular file → error.
-6. Create symlink from D → F.
+8. Create symlink from D → F.
 ## Environment variables 
 There are two environment variables that effect the functionality of easy_sym_farm
 
@@ -203,6 +209,82 @@ inorder to move all the symlinks.
 4 = no remote origin
 
 
+## Installation
+include a `dumb_build.toml` file in the repo
+with this content:
+```toml
+[build]
+executable_name = "esf"
+command = "python $dumb_project_dir/easy_sym_farm.py"
+excluded = [
+  ".gitignore",
+  "__pycache__",
+  "images",
+  "keyboard/__pycache__",
+  ".ruff_cache",
+  "dumb_build.toml",
+  "test.py",
+  "LICENSE",
+  "README.md",
+]
+local_install_excluded = [".git"]
+```
+The user can run `din Ben-Collett/easy_sym_farm` to install the program without them needing to directly clone the repo themselves.
+(din is the command to run dumb installer which automatically clones the repo to a certain location automatically)
+
+The user can install dumb_installer from the repo: https://github.com/Ben-Collett/dumb_installer
+
+The user can ofcourse also just clone the repo and run the easy_sym_farm.py file without doing a full install.
+
+## Contribution Guildlines
+This project doesn't accept pull request, it is primarily for me to experiment with the idea of AI spec driven development.
+Any one interested can make an issue if they find any and make any suggestions for improvoment to the spec.
+
+## License
+BSD Zero Clause License
+
+Copyright (c) 2026 Benjamin Collett 
+
+Permission to use, copy, modify, and/or distribute this software
+for any purpose with or without fee is hereby granted.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
+WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
+AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR
+PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+PERFORMANCE OF THIS SOFTWARE.
+
+## Code Structure
+### File Structure
+easy_sym_farm.py
+errors.py
+cli.py
+.gitignore -> should ignore all cache files, and only cache files. example: __pycache__, .ruff_cache
+git_wrapper.py -> contains a wrapper class for all the git functionality
+link_utils.py -> utils for handling symlinking
+LICENSE -> BSD Zero
+README.MD
+Any additional needed files can be created.
+
+### Code Organization rules
+- No file may exceed 400 lines.
+- No function may exceed 50 lines.
+- Functions must do one logical operation.
+- No function may handle both IO and business logic.
+
+### Readme
+The read me should include:
+- A disclaimer that the code was written using AI spec driven development at the top of the readme
+- A brief overview of what the program is
+- instructions on how to install the program using dumb_installer including a link to the repo to install dumb_installer if the user doesn't have it already.
+- An explanation of how to clone the repo and run the program without installing it `git clone https://github.com/Ben-Collett/easy_sym_farm`,`python easy_sym_farm.py`
+- A description of each flag and configuration option available
+- The contribution guidelines
+- The name of the license that links to the LICENSE file
+
 ## Edge cases
 1) If a runs easy_env_sym push and git is not installed exit with an error and print git not installed 
 2) If easy_env_sym push is run and git is installed but the directory is not an initialized git directory exit and print the matching exit code definition
@@ -222,3 +304,5 @@ The implementation is complete when:
 - No external dependencies are used.
 - Default exclusions (.git, metadata file, .gitignore) are enforced.
 - Unlink followed by link results in identical filesystem state.
+- All code structure and orginzation rules are followed.
+- The readme has all the required components.
