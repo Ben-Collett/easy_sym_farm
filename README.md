@@ -2,14 +2,14 @@
 
 > **Disclaimer:** This code was written using AI spec-driven development.
 
-A symlink farm manager in Python similar to GNU Stow. It allows you to manage files from a source directory and symlink them to a target directory, with easy git backup integration.
+A symlink farm manager in Python similar to GNU Stow. It allows you to manage files from a source directory and link them to target paths, with easy git-based backup capabilities.
 
 ## Installation
 
 ### Using dumb_installer (Recommended)
 
-1. Install dumb_installer from [https://github.com/Ben-Collett/dumb_installer](https://github.com/Ben-Collett/dumb_installer)
-2. Run:
+Install [dumb_installer](https://github.com/Ben-Collett/dumb_installer) first, then run:
+
 ```bash
 din Ben-Collett/easy_sym_farm
 ```
@@ -18,76 +18,56 @@ din Ben-Collett/easy_sym_farm
 
 ```bash
 git clone https://github.com/Ben-Collett/easy_sym_farm
-python easy_sym_farm.py
+cd easy_sym_farm
+python easy_sym_farm.py help
 ```
 
-## Usage
-
-```
-easy_env_sym <command> [arguments]
-```
-
-### Commands
+## Commands
 
 | Command | Description |
 |---------|-------------|
 | `help`, `-h` | Show help message |
-| `link` | Create symlinks from source to target |
-| `unlink [pattern]` | Remove symlinks (optionally matching pattern) |
+| `link` | Symlink files from source directory |
+| `unlink [pattern]` | Unlink symlinked files |
 | `push` | Git add, commit, and push changes |
-| `add <path>` | Move file/dir to source and link it |
-| `add <rel_path> <abs_path>` | Add with custom source path (adds to path_overrides) |
+| `add <path> [group_dir]` | Add file/dir to source and link it |
 | `add-to-git-ignore <pattern>` | Add pattern to .gitignore |
 | `remove-from-git-ignore <pattern>` | Remove pattern from .gitignore |
 | `add-to-no-update <pattern>` | Add pattern to no-update-on list |
 | `remove-from-no-update <pattern>` | Remove pattern from no-update-on list |
 | `add-to-no-new-files <path>` | Add path to no-new-files list |
 | `remove-from-no-new-files <path>` | Remove path from no-new-files list |
-| `add-to-no-sym <pattern>` | Add pattern to no-sym list |
-| `remove-from-no-sym <pattern>` | Remove pattern from no-sym list |
-| `set source <path>` | Set source directory |
+| `set source <path>` | Set source directory path |
 | `set meta-name <name>` | Set metadata file name |
 | `set <tag> <setting> <value>` | Set any config value |
 
+## Configuration
+
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `$easy_sym_source` | `~/easy_syms` | Source directory containing managed files |
-| `$easy_sym_meta_name` | `easy_env_sym_data.toml` | Metadata filename |
+- `easy_sym_source`: Source directory (default: `~/easy_syms`)
+- `easy_sym_meta_name`: Metadata file name (default: `easy_env_sym_data.toml`)
 
-### Configuration (TOML)
+### Metadata File (TOML)
 
-The metadata file contains the following sections:
+Located in the source directory:
 
-#### `[general]`
-
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `output_root_target` | string | `$HOME` | Root directory where symlinks are created |
-| `no-new-files` | list | `[]` | Paths where new files shouldn't be added/deleted |
-| `no-sym` | list | `[]` | File patterns to exclude from symlinking |
-| `no-update-on` | list | `[]` | Patterns to skip during push |
-| `push-notify-command` | string | - | Command to run on push (use `$!SYM_MESSAGE`) |
-
-#### `[network]`
-
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `retry-delay-ms` | int | `6000` | Delay between push retries (ms) |
-| `max-attempts` | int | `10` | Maximum push attempts |
-
-#### `[path_overrides]`
-
-Key-value pairs mapping relative paths to absolute destinations.
-
-Example:
 ```toml
-[path_overrides]
+[general]
+no-new-files = ["fish"]           # Directories where new files can't be added
+no-update-on = ["nvim/lazy-lock.json"]  # Patterns to skip during push
+push-notify-command = "notify -t 100000 $!SYM_MESSAGE"  # Notification command
+
+[network]
+retry-delay-ms = 6000             # Delay between retry attempts
+max-attempts = 10                 # Max push retry attempts
+
+[paths]
+"nvim" = "~/.config/nvim"         # Relative path -> target path mapping
 "keyd" = "/etc/keyd"
 ```
 
-### Exit Codes
+## Exit Codes
 
 | Code | Meaning |
 |------|---------|
@@ -99,8 +79,8 @@ Example:
 
 ## Contribution Guidelines
 
-This project doesn't accept pull requests. It is primarily for experimenting with AI spec-driven development. Anyone interested can open an issue for bugs or suggestions for improving the spec.
+This project doesn't accept pull requests. It is primarily for experimenting with AI spec-driven development. Feel free to open issues for bugs or suggestions for spec improvements.
 
 ## License
 
-[BSD Zero Clause](LICENSE)
+[BSD Zero Clause License](LICENSE)

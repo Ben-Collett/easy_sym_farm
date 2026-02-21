@@ -1,3 +1,5 @@
-__pycache__
-.ruff_cache
-*.pyc
+__pycache__/
+*.py[cod]
+*$py.class
+.ruff_cache/
+.mypy_cache/

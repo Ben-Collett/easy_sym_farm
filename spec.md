@@ -1,15 +1,12 @@
 ## Intro
-easy_sym_farm is a symlink farm in python similar to stow. That is it should allow the user to take the files from a directory and link them to the target directory and provide an easy way to back up those files to external platforms like github.
+easy_sym_farm is a symlink farm in python similar to stow. That is it should allow the user to take the files from a directory and link them to the target paths and provide an easy way to back up those files to external platforms like github.
 
 ## Definitions
 Source Directory:
     The directory containing managed files. Defaults to $HOME/easy_syms.
 
-Output Root Target:
-    The root directory where symlinks are created. Defaults to $HOME.
-
 Managed File:
-    Any file or directory located under the Source Directory and not excluded by no-sym or default exclusions.
+    Any file or directory located under the Source Directory that is linked using the paths tag
 
 Pattern:
     A glob-style pattern interpreted using Python's fnmatch module.
@@ -29,7 +26,7 @@ Pattern Rules:
 - A pattern matching a directory applies recursively to its contents.
 
 
-Linking Rules:
+### Linking Rules:
 1. Links should be created at the highest directory possible, i.e. if a directory can be linked it should be linked instead of linking it's individual files.
 2. make sure to avoid bugs like this when you simlink a directory Error: ~/.config/easy_env/abbrs_and_aliases.conf exists and is a regular file, if you symlink the easy_env directory its contents will appear there, there is no reason to symlink the sub files
 3. Existing non-symlink files at the destination cause an error.
@@ -42,7 +39,7 @@ Linking Rules:
 10. The linking operation is done very often so any possible optimization should be used
 
 
-Git Rules:
+### Git Rules:
 - The repository root refrened throughout the file is the root of the source directoriy
 - The program must use `git status --porcelain`.
 - Only unstaged changes are considered.
@@ -51,81 +48,68 @@ Git Rules:
 - Empty commits should not occur, the should be guarded against.
 - The commit messages should be a time stamp, at the time of the commit, in 24 hour time using this format: yyyy-mm-dd HH:MM:SS 
 
-Directory Linking Rule:
+### Directory Linking Rule:
 Directories must be linked as directories (not flattened).
-The directory itself is symlinked, not its individual contents,
-unless a child is excluded via no-sym.
+The directory itself is symlinked, not its individual children.
 
-Error Reporting Rule:
+### Error Reporting Rule:
 All errors must:
 - Print a clear human-readable message to stderr.
 - Exit with the defined exit code.
 - Not print stack traces.
 - if it is a push error, notify the user using the notify command.
 
-Unlink Rule:
+### Unlink Rule:
 The unlink command must:
 - Remove only symlinks that point to files under the Source Directory.
 - Leave non-symlink files untouched.
 - Remove empty parent directories created during linking.
-- 
-Creation Rule:
+
+### Creation Rule:
  If a directory/file is needed to exist then it should be created.
- for example the metadata, the source directory, the target directory, in all cases if they do not exist and a call modifies them they should be created.
+ for example the metadata, the source directory, the directory being symlinked to, in all cases if they do not exist and a call modifies them they should be created.
 Home Resolution Rule:
 The home directory must be resolved using the SUDO_USER environment variable if present.
 Otherwise, use the current user’s home directory.
 Do not use os.path.expanduser("~") directly when running under sudo.
 
-Deterministic Traversal Rule:
+### Deterministic Traversal Rule:
 Files must be traversed in lexicographic sorted order
 based on their relative path from the Source Directory.
 Traverse directories first and remember that if a directory gets symlinked from the source dir
 or was already symlniked from the source dir there is no reason to traverse it's children.
 
-Network Failure Definition:
+### Network Failure Definition:
 A push failure is considered network-related if git returns a non-zero exit code and stderr contains:
 - "Could not resolve host"
 - "Connection timed out"
 - "Failed to connect"
 
-Path Override Resolution Rules:
-- If a relative path P exists under [path_overrides],
-the symlink target is the override path instead of
-Output Root Target / P.
-- path resolution is lower precdence then no-sym and no-new-files that is to say even if a path is overridden it must respect those two lists
-
-Override Safety Rule:
-Path overrides must be absolute paths.
-Relative overrides are invalid.
-
-Ancestor Precedence Rule:
+### Ancestor Precedence Rule:
 If linking directory A would encompass an already-linked child B,
 the program must:
 1. Unlink B.
 2. Link A.
 3. Ensure no duplicate symlinks exist.
 
-Atomicity Requirement:
+### Atomicity Requirement:
 If any link operation fails, the program must:
 - Stop immediately
 - Leave already-created links intact
 - Print a summary of successful and failed operations
 
-Link Algorithm:
+### Link Algorithm:
 
 For each file F in Source Directory:
-1. Skip if F matches no-sym.
-2. Skip if F is in default exclusions.
-3. Determine destination path D using the path override if there is one
-4. If D is a directory that is already symlinked from the source then stop traversing down that branch of the file tree
-5. If D is a directory that already exist then don't link it, recurse and link its descendents instead
-6. Ensure parent directory of D exists create it if it doesn't.
-7. If D exists:
+1. Determine destination path D, using the paths tag,  if there is no destination then skip. 
+2. If D is a directory that is already symlinked from the source then stop traversing down that branch of the file tree
+3. If D is a directory that already exist then don't link it, recurse and link its descendents instead
+4. Ensure parent directory of D exists create it if it doesn't.
+5. If D exists:
    a. If D is a symlink pointing to F → skip.
    b. If D is a symlink pointing elsewhere → error.
    c. If D is a regular file → error.
-8. Create symlink from D → F.
+6. Create symlink from D → F.
 ## Environment variables 
 There are two environment variables that effect the functionality of easy_sym_farm
 
@@ -136,15 +120,11 @@ There are two environment variables that effect the functionality of easy_sym_fa
 The meta data file is a toml used to store important information for linking.
 
 the following fields should be under the `[general]` tag
-`output_root_target` this is the root directory where the files are symlinked to this should default to the home directory if it is not set.
-
 `no-new-files` is a list of paths to file directories where new files shouldn't be created, deleted nor renamed. They can however be modified.
 What this practically means that if a user tries to do a normal push the program will check if any of these directories had a new file added or deleted,
 using git status. If any files where added or removed then the program will error and exit, WITHOUT RUNNING git add. The check must occur before the git add logic.
 This can be used so that a user avoids accedntially committing secrets for example if a user adds there shell to the no-new-files list, `"no-new-files" = ["fish"]`
 and they later added a `secrets.fish` file to there fish directory it would avoid the user accedntially, absentmindidly, committing those secrets. If a directory is passed in the rule applies to all of its subdirectries as well
-
-`no-sym` a list of file patterns that should not be symlinked, relative to the root path for example you might have `no-sym = [fish/nonsense.fish]` to exclude the nonsense.fish file from being symlinked. Defaults to an empty list
 
 `no-update-on` these are a list of file patterns for helping determine when a git add, commit, and push should occur.
 Essentially if after running git status all the changed files match patterns in the no-update-on list then the files should not be git added/commited/pushed.
@@ -159,8 +139,12 @@ if a push can't occur because the device is not connected to the internet/can't 
 every `retry-delay-ms` for `max-attempts` the push-notify-command should only notify for the last failure/success not any intermidary failures do to the network
 `retry-delay-ms` default to 6000
 `max-attempts` defaults to 10 
-`[path_overrides] tag` a tag where each key value pair under the tag is a mapping that overrides the path where the file/directory is symlinked
-for example you might have this `"keyd" = "/etc/keyd"`
+`[paths] tag` a tag where each key value pair under the tag is a mapping that tells the file where to symlink 
+for example you might have this `"keyd" = "/etc/keyd"` to clarify this is a relative path to absolute path mapping from the source directory to any target path.
+`"editors/tuis/nvim" = ~/.config/nvim` 
+
+~ to reference the home directory is preferred and should be auto expanded to the user if the program is ran using sudo then it should expand the the user who called sudo's home directory
+
 ## CLI interface
 `easy_env_sym -h` or `easy_env_sym help` prints all available flags and the program description
 
@@ -170,20 +154,17 @@ for example you might have this `"keyd" = "/etc/keyd"`
 `easy_env_sym unlink \<pattern\>` unlinks all files relative to the source directory root using the file pattern.
 
 `easy_env_sym push` uses git add, commit, push to push the changes
-`easy_env_sym add "\<relative or absolute path\>"` this should take a file or directory which is in the output_root_target or one of its subdirectories. If it is not then the program should error.
-if it is then the file/directory should be moved to the correspoiding relative path from the output_target_root in the source directory.
-for example if the output_target_root was the home directory ~ and the user was in `~/.config/`
-and ran `easy_env_sym add nvim` then the nvim directory should be moved to $eas_env_sym_source(or the home directory)/.config/nvim
-and then that directory should be symlinked to the absolute path of the original /home/<username>/.config/nvim
 
-`easy_env_sym add "\<relative or absolute path\> \<relative or absolute path\>"` this works similarly to the regulare add except it does not verify it is under the output_target_dir.
+`easy_env_sym add "\<relative or absolute path\>"` this should take a non symlink file or directory, move it to the source directory, add the path from the source directory 
+to original file directory to the paths tag. And link the file. if the file the user is trying to add is already a symlink then error. If there is a file or directory with the same name as the file being linked in the source
+then simply put an _increment at the end(ex: file_1 file_2 file_3)
 
-Instead it takes two paths
-the first path is the relative path it will appear under in the source dir.
-the second is the path to the file that's is to be symlinked which will be converted to an absolute path by the program if it is a relative path
-this is achieved by adding it to the path_overrides tag
+`easy_env_sym add "\<relative or absolute path\> <group_dir>"` all the behaviours of the previous add command should be true except this takes a group dir
+which is the name of a directory or directories that should be created in the source directory and the file added to it.
+for example if the user runs `easy_env_sym add nvim/ text_editors/tuis` then the `text_editors/tuis` directory and any needed parents should be creaated and the nvim directory copied and symlinked from there.
 
 `easy_env_sym add-to-git-ignore \<pattern\>` adds a pattern to the .gitignore file
+
 `easy_env_sym remove-from-git-ignore \<pattern\>` removes a pattern from the .gitignore file
 
 `easy_env_sym add-to-no-update \<pattern\>` adds a file pattern to the no-update-on list in the toml file
@@ -197,6 +178,7 @@ this is achieved by adding it to the path_overrides tag
 
 `easy_env_sym set source \<path\>` sets the source directory path environment variable, this should also run unlink before it changes the value then link after it changes the value
 inorder to move all the symlinks.
+
 `easy_env_sym set meta-name \<name\>` sets the meta data file name environment variable
 `easy_env_sym set \<tag\> \<setting\> \<value(s)\>` this should allow the user to set any value from the config
 
@@ -290,8 +272,8 @@ The read me should include:
 2) If easy_env_sym push is run and git is installed but the directory is not an initialized git directory exit and print the matching exit code definition
 3) If easy_env_sym push is run and the directory is initialized but there is no remote origin exits and prints no remote origin found.
 4) There are a few files which should not be symlinked by default namely the .git directory, the .gitignore file, and the metadata file.
-5) If because of a path override a symlink requires root privlages to create then a user should be notified so they can run the command with root privlages. Write privlages to the link should be made as root only for security reasons.
-6) Even if the user runs the command with sudo it must use the users home directory not the root users home directory
+5) If because of a path a symlink requires root privlages to create then a user should be notified so they can run the command with root privlages. Write privlages to the link should be made as root only for security reasons.
+6) Even if the user runs the link command with sudo it must use the users home directory as the ~ home directory not the root users home directory
 7) If the user tries to symlink a directory or a file that is a sub directory of an already symlinked directory(from the source directory) stop them and error.
 8) If a user symlinks a directory which has a sub directory or file already linked from the source directory then unlink the sub directory/file and link the ancestor directory.
 
@@ -302,7 +284,6 @@ The implementation is complete when:
 - Git push obeys all no-new-files and no-update-on rules.
 - Retry logic obeys max-attempts and retry-delay-ms.
 - No external dependencies are used.
-- Default exclusions (.git, metadata file, .gitignore) are enforced.
 - Unlink followed by link results in identical filesystem state.
 - All code structure and orginzation rules are followed.
 - The readme has all the required components.

@@ -1,165 +1,152 @@
+import os
 import subprocess
-import shutil
+import time
 from datetime import datetime
-from typing import List, Tuple, Optional
-import fnmatch
+from typing import Optional
 
-from errors import (
-    GitNotInstalledError,
-    NotAGitRepoError,
-    NoRemoteOriginError,
-    NetworkError,
-    EasySymError,
-    NO_REMOTE_ORIGIN,
-)
+from errors import ExitCode, error, error_with_notify
 
 
 class GitWrapper:
-    def __init__(self, repo_path: str):
+    def __init__(
+        self,
+        repo_path: str,
+        retry_delay_ms: int = 6000,
+        max_attempts: int = 10,
+        notify_command: Optional[str] = None,
+    ):
         self.repo_path = repo_path
-        self._check_git_installed()
-        self._check_is_git_repo()
+        self.retry_delay_ms = retry_delay_ms
+        self.max_attempts = max_attempts
+        self.notify_command = notify_command
 
-    def _check_git_installed(self):
-        if shutil.which("git") is None:
-            raise GitNotInstalledError()
-
-    def _check_is_git_repo(self):
-        result = subprocess.run(
-            ["git", "rev-parse", "--is-inside-work-tree"],
+    def _run_git(
+        self, args: list[str], check: bool = True
+    ) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            ["git"] + args,
             cwd=self.repo_path,
             capture_output=True,
             text=True,
+            check=check,
         )
-        if result.returncode != 0:
-            raise NotAGitRepoError()
+
+    def is_git_installed(self) -> bool:
+        try:
+            subprocess.run(
+                ["git", "--version"],
+                capture_output=True,
+                check=True,
+            )
+            return True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return False
+
+    def is_git_repo(self) -> bool:
+        try:
+            self._run_git(["rev-parse", "--git-dir"])
+            return True
+        except subprocess.CalledProcessError:
+            return False
 
     def has_remote_origin(self) -> bool:
-        result = subprocess.run(
-            ["git", "remote", "get-url", "origin"],
-            cwd=self.repo_path,
-            capture_output=True,
-            text=True,
-        )
-        return result.returncode == 0
+        try:
+            result = self._run_git(["remote"])
+            return "origin" in result.stdout.splitlines()
+        except subprocess.CalledProcessError:
+            return False
 
-    def get_status_porcelain(self) -> List[Tuple[str, str]]:
-        result = subprocess.run(
-            ["git", "status", "--porcelain"],
-            cwd=self.repo_path,
-            capture_output=True,
-            text=True,
-        )
-        statuses = []
+    def get_porcelain_status(self) -> list[tuple[str, str]]:
+        result = self._run_git(["status", "--porcelain"])
+        status_lines = []
         for line in result.stdout.strip().split("\n"):
             if line:
                 status = line[:2]
                 path = line[3:]
-                statuses.append((status, path))
-        return statuses
+                status_lines.append((status, path))
+        return status_lines
 
-    def get_unstaged_changes(self) -> List[Tuple[str, str]]:
-        all_changes = self.get_status_porcelain()
-        return [
-            (status, path)
-            for status, path in all_changes
-            if status.startswith("??")
-            or "D" in status
-            or "M" in status
-            or "A" in status
-        ]
+    def get_new_and_deleted_files(self, no_new_files_dirs: list[str]) -> list[str]:
+        status_lines = self.get_porcelain_status()
+        problematic = []
+        for status, path in status_lines:
+            is_new = status.startswith("??") or status.startswith("A ")
+            is_deleted = "D" in status
+            if is_new or is_deleted:
+                for no_new_dir in no_new_files_dirs:
+                    if path.startswith(no_new_dir) or path == no_new_dir:
+                        problematic.append(path)
+                        break
+        return problematic
 
-    def get_new_files(self) -> List[str]:
-        changes = self.get_status_porcelain()
-        return [path for status, path in changes if status.startswith("??")]
+    def has_unstaged_changes(self) -> bool:
+        status_lines = self.get_porcelain_status()
+        return len(status_lines) > 0
 
-    def get_deleted_files(self) -> List[str]:
-        changes = self.get_status_porcelain()
-        return [path for status, path in changes if "D" in status]
+    def get_changed_paths(self) -> list[str]:
+        status_lines = self.get_porcelain_status()
+        return [path for _, path in status_lines]
 
-    def files_match_patterns(self, files: List[str], patterns: List[str]) -> bool:
-        if not patterns:
-            return not files
-        for f in files:
-            matches = any(fnmatch.fnmatch(f, p) for p in patterns)
-            if not matches:
-                return False
-        return True
+    def add_all(self) -> None:
+        self._run_git(["add", "-A"])
 
-    def add_all(self):
-        subprocess.run(
-            ["git", "add", "."],
-            cwd=self.repo_path,
-            capture_output=True,
-            text=True,
-        )
-
-    def add_path(self, path: str):
-        subprocess.run(
-            ["git", "add", path],
-            cwd=self.repo_path,
-            capture_output=True,
-            text=True,
-        )
-
-    def commit(self, message: str):
-        subprocess.run(
-            ["git", "commit", "-m", message],
-            cwd=self.repo_path,
-            capture_output=True,
-            text=True,
-        )
-
-    def has_changes_to_commit(self) -> bool:
-        result = subprocess.run(
-            ["git", "diff", "--cached", "--quiet"],
-            cwd=self.repo_path,
-            capture_output=True,
-        )
-        return result.returncode != 0
-
-    def push(self) -> Tuple[bool, str]:
-        result = subprocess.run(
-            ["git", "push"],
-            cwd=self.repo_path,
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode == 0:
-            return True, ""
-        stderr = result.stderr.lower()
-        if any(
-            msg in stderr
-            for msg in [
-                "could not resolve host",
-                "connection timed out",
-                "failed to connect",
-            ]
-        ):
-            return False, "network"
-        return False, "other"
-
-    def get_commit_timestamp(self) -> str:
-        return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    def add_to_gitignore(self, pattern: str):
-        gitignore_path = f"{self.repo_path}/.gitignore"
-        with open(gitignore_path, "a+") as f:
-            f.seek(0)
-            content = f.read()
-            if pattern not in content:
-                if content and not content.endswith("\n"):
-                    f.write("\n")
-                f.write(f"{pattern}\n")
-
-    def remove_from_gitignore(self, pattern: str):
-        gitignore_path = f"{self.repo_path}/.gitignore"
+    def commit(self, message: Optional[str] = None) -> bool:
+        if message is None:
+            message = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         try:
-            with open(gitignore_path, "r") as f:
-                lines = f.readlines()
-            with open(gitignore_path, "w") as f:
-                for line in lines:
-                    if line.strip() != pattern:
-                        f.write(line)
-        except FileNotFoundError:
-            pass
+            self._run_git(["commit", "-m", message])
+            return True
+        except subprocess.CalledProcessError:
+            return False
+
+    def _is_network_error(self, stderr: str) -> bool:
+        network_errors = [
+            "Could not resolve host",
+            "Connection timed out",
+            "Failed to connect",
+        ]
+        return any(err in stderr for err in network_errors)
+
+    def push(self) -> tuple[bool, str]:
+        attempts = 0
+        while attempts < self.max_attempts:
+            try:
+                self._run_git(["push"])
+                return True, "Push successful"
+            except subprocess.CalledProcessError as e:
+                stderr = e.stderr or ""
+                if self._is_network_error(stderr):
+                    attempts += 1
+                    if attempts < self.max_attempts:
+                        time.sleep(self.retry_delay_ms / 1000)
+                else:
+                    return False, f"Push failed: {stderr}"
+        return False, "Push failed: max retry attempts reached"
+
+    def push_with_notify(self) -> None:
+        success, message = self.push()
+        error_with_notify(message, ExitCode.GENERAL_FAILURE, self.notify_command)
+
+    def add_to_gitignore(self, pattern: str) -> None:
+        gitignore_path = os.path.join(self.repo_path, ".gitignore")
+        with open(gitignore_path, "a") as f:
+            f.write(f"{pattern}\n")
+
+    def remove_from_gitignore(self, pattern: str) -> None:
+        gitignore_path = os.path.join(self.repo_path, ".gitignore")
+        if not os.path.exists(gitignore_path):
+            return
+        with open(gitignore_path, "r") as f:
+            lines = f.readlines()
+        with open(gitignore_path, "w") as f:
+            for line in lines:
+                if line.strip() != pattern:
+                    f.write(line)
+
+    def check_preconditions(self) -> None:
+        if not self.is_git_installed():
+            error("git not installed", ExitCode.GIT_NOT_INSTALLED)
+        if not self.is_git_repo():
+            error("not a git repository", ExitCode.NOT_A_GIT_REPO)
+        if not self.has_remote_origin():
+            error("no remote origin found", ExitCode.NO_REMOTE_ORIGIN)
