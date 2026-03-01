@@ -1,36 +1,61 @@
-import sys
-from enum import IntEnum
-from typing import Optional
+from pathlib import Path
 
 
-class ExitCode(IntEnum):
-    SUCCESS = 0
-    GENERAL_FAILURE = 1
-    GIT_NOT_INSTALLED = 2
-    NOT_A_GIT_REPO = 3
-    NO_REMOTE_ORIGIN = 4
+class GitError(Exception):
+    def __init__(self, path: Path):
+        self.path = path
+        self.message = f"there was a git error at {path}"
+        super().__init__(self.message)
 
 
-def error(message: str, code: ExitCode = ExitCode.GENERAL_FAILURE) -> None:
-    print(f"Error: {message}", file=sys.stderr)
-    sys.exit(code)
+class MissingRemoteOrigin(GitError):
+    def __init__(self, path: Path):
+        super().__init__(path)
+        self.message = f"couldn't find remote origin for {path}"
 
 
-def notify(message: str, notify_command: Optional[str]) -> None:
-    if notify_command:
-        import subprocess
-
-        cmd = notify_command.replace("$!SYM_MESSAGE", message)
-        try:
-            subprocess.run(cmd, shell=True, check=False)
-        except Exception:
-            pass
+class NotAGitRepo(GitError):
+    def __init__(self, path: Path):
+        super().__init__(path)
+        self.message = f"{path} is not a git repository"
 
 
-def error_with_notify(
-    message: str,
-    code: ExitCode = ExitCode.GENERAL_FAILURE,
-    notify_command: Optional[str] = None,
-) -> None:
-    notify(message, notify_command)
-    error(message, code)
+class LinkingError(Exception):
+    def __init__(self):
+        self.message = "there was an error linking"
+        super().__init__(self.message)
+
+
+class FileAlreadyExist(LinkingError):
+    def __init__(self, dest_path: Path):
+        super().__init__()
+        self.dest_path = dest_path
+        self.message = f"couldn't link file existing {dest_path}"
+
+
+class LinkPermissionDenied(LinkingError):
+    def __init__(self, dest_path: Path, creating: bool):
+        super().__init__()
+        self.dest_path = dest_path
+        self.creating = creating
+        action = "create" if creating else "remove"
+        self.message = f"Permission Error: failed to {action} link at {dest_path}"
+
+
+class CustomFileException(Exception):
+    def __init__(self, path: Path):
+        self.path = path
+        self.message = f"file exception {path}"
+        super().__init__(self.message)
+
+
+class DirectoryNotFound(CustomFileException):
+    def __init__(self, path: Path):
+        super().__init__(path)
+        self.message = f"directory not found at {path}"
+
+
+class FileNotDirectory(CustomFileException):
+    def __init__(self, path: Path):
+        super().__init__(path)
+        self.message = f"{path} is a file not a directory"

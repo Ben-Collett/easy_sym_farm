@@ -1,6 +1,6 @@
 [build]
 executable_name = "esf"
-command = "python $dumb_project_dir/easy_sym_farm.py"
+command = "python $dumb_project_dir/esf.py"
 excluded = [
   ".gitignore",
   "__pycache__",

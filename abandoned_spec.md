@@ -141,7 +141,7 @@ every `retry-delay-ms` for `max-attempts` the push-notify-command should only no
 `max-attempts` defaults to 10 
 `[paths] tag` a tag where each key value pair under the tag is a mapping that tells the file where to symlink 
 for example you might have this `"keyd" = "/etc/keyd"` to clarify this is a relative path to absolute path mapping from the source directory to any target path.
-`"editors/tuis/nvim" = ~/.config/nvim` 
+`"editors/tuis/nvim" = ~/.config/nvim`, make sure to put the keys in quotes. The keys in the key value pairs should be in quotes.
 
 ~ to reference the home directory is preferred and should be auto expanded to the user if the program is ran using sudo then it should expand the the user who called sudo's home directory
 

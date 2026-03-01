@@ -1,12 +1,10 @@
-# easy_sym_farm
+# Easy Sym Farm
 
-> **Disclaimer:** This code was written using AI spec-driven development.
-
-A symlink farm manager in Python similar to GNU Stow. It allows you to manage files from a source directory and link them to target paths, with easy git-based backup capabilities.
+Easy Sym Farm is a symlink farm written in Python, similar to stow. It allows you to manage symbolic links to your configuration files and easily back them up to external platforms like GitHub.
 
 ## Installation
 
-### Using dumb_installer (Recommended)
+Install using dumbinstaller:
 
 Install [dumb_installer](https://github.com/Ben-Collett/dumb_installer) first, then run:
 
@@ -14,73 +12,77 @@ Install [dumb_installer](https://github.com/Ben-Collett/dumb_installer) first, t
 din Ben-Collett/easy_sym_farm
 ```
 
-### Manual Installation
+Without installing:
 
 ```bash
 git clone https://github.com/Ben-Collett/easy_sym_farm
 cd easy_sym_farm
-python easy_sym_farm.py help
+python easy_sym_farm.py
 ```
 
-## Commands
+## Environment Variables
+
+- `$easy_sym_source` - The directory where all files that need to be symlinked live. Defaults to `$HOME/easy_syms`.
+- `$easy_sym_meta_name` - The name of the metadata file. Defaults to `easy_env_sym_data.toml`.
+
+## CLI Commands
 
 | Command | Description |
 |---------|-------------|
-| `help`, `-h` | Show help message |
-| `link` | Symlink files from source directory |
-| `unlink [pattern]` | Unlink symlinked files |
-| `push` | Git add, commit, and push changes |
-| `add <path> [group_dir]` | Add file/dir to source and link it |
-| `add-to-git-ignore <pattern>` | Add pattern to .gitignore |
-| `remove-from-git-ignore <pattern>` | Remove pattern from .gitignore |
-| `add-to-no-update <pattern>` | Add pattern to no-update-on list |
-| `remove-from-no-update <pattern>` | Remove pattern from no-update-on list |
-| `add-to-no-new-files <path>` | Add path to no-new-files list |
-| `remove-from-no-new-files <path>` | Remove path from no-new-files list |
-| `set source <path>` | Set source directory path |
-| `set meta-name <name>` | Set metadata file name |
-| `set <tag> <setting> <value>` | Set any config value |
+| `link` | Symlink the files in the source directory |
+| `unlink` | Unlinks all symlinked files from the source directory |
+| `unlink <pattern>` | Unlinks all files relative to the source directory root using the file pattern |
+| `push` | Uses git add, commit, push to push the changes |
+| `add <file>` | Add a non-symlink file or directory, move it to source, and link it |
+| `add <file> <group>` | Add a file to a group directory in the source |
+| `add-to-git-ignore <pattern>` | Adds a pattern to the .gitignore file |
+| `remove-from-git-ignore <pattern>` | Removes a pattern from the .gitignore file |
+| `add-to-no-update <pattern>` | Adds a file pattern to the no-update-on list |
+| `remove-from-no-update <pattern>` | Removes a file pattern from the no-update-on list |
+| `add-to-no-new-files <path>` | Adds a path to the no-new-files list |
+| `remove-from-no-new-files <path>` | Removes a path from the no-new-files list |
+| `set <tag> <setting> <value(s)>` | Set any value from the config |
+| `dsym <pattern>` | Dematerialize symlink: removes symlink, copies file to target, removes from paths |
 
-## Configuration
+## Configuration Options
 
-### Environment Variables
+The configuration is stored in a TOML file (default: `easy_env_sym_data.toml`) in the source directory.
 
-- `easy_sym_source`: Source directory (default: `~/easy_syms`)
-- `easy_sym_meta_name`: Metadata file name (default: `easy_env_sym_data.toml`)
+### `[general]` Tag
 
-### Metadata File (TOML)
+| Setting | Type | Description |
+|---------|------|-------------|
+| `no-new-files` | list[str] | Paths to directories where new files shouldn't be created, deleted, or renamed. Files within can still be modified. Used to prevent accidentally committing secrets. |
+| `no-update-on` | list[str] | File patterns. If after running git status all changed files match these patterns, they should not be git added/committed/pushed. Useful for files like lock files that don't need to be backed up every time. |
+| `push-notify-command` | Optional[str] | Command to run when push succeeds or fails. The string `$!SYM_MESSAGE` in the command will be substituted with the actual message. |
 
-Located in the source directory:
+### `[network]` Tag
 
-```toml
-[general]
-no-new-files = ["fish"]           # Directories where new files can't be added
-no-update-on = ["nvim/lazy-lock.json"]  # Patterns to skip during push
-push-notify-command = "notify -t 100000 $!SYM_MESSAGE"  # Notification command
+| Setting | Type | Description |
+|---------|------|-------------|
+| `retry-delays-ms` | int | Delay in milliseconds between retry attempts. Default: 6000 |
+| `max-attempts` | int | Maximum number of retry attempts for push operations. Default: 10 |
 
-[network]
-retry-delay-ms = 6000             # Delay between retry attempts
-max-attempts = 10                 # Max push retry attempts
+### `[paths]` Tag
 
-[paths]
-"nvim" = "~/.config/nvim"         # Relative path -> target path mapping
-"keyd" = "/etc/keyd"
-```
+| Setting | Type | Description |
+|---------|------|-------------|
+| `<source_path>` | str | Maps a relative path from the source directory to an absolute target path. For example: `"editors/tuis/nvim" = "~/.config/nvim"` |
 
-## Exit Codes
+## Contributions
 
-| Code | Meaning |
-|------|---------|
-| 0 | Success |
-| 1 | General failure |
-| 2 | Git not installed |
-| 3 | Not a git repository |
-| 4 | No remote origin |
+Contributions are welcome! Please feel free to open issues or submit pull requests.
 
-## Contribution Guidelines
+## About abandoned_spec.md and abandoned_specs/
 
-This project doesn't accept pull requests. It is primarily for experimenting with AI spec-driven development. Feel free to open issues for bugs or suggestions for spec improvements.
+This project was originally created using spec-driven development (SDD). The idea was to write a detailed specification first, then have an AI implement it. This approach didn't work out well - the specifications became too complex and the implementation diverged from them. The `abandoned_spec.md` file contains the original specification that was eventually abandoned.
+
+The `abandoned_specs/` directory was an attempt at contract-driven development using LLMs, where the idea was to have AI generate both a specification and a corresponding implementation that would be verified against each other. This also didn't work out.
+
+Both approaches were abandoned in favor of direct implementation but are left because I plan on creating notes on my attempts and issues I encountered with each approach.
 
 ## License
 
-[BSD Zero Clause License](LICENSE)
+BSD Zero Clause License - see the [LICENSE](LICENSE) file for details.
+
+Copyright (c) 2026 Benjamin Collett

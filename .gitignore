@@ -1,5 +1,5 @@
 __pycache__/
-*.py[cod]
-*$py.class
+*.pyc
 .ruff_cache/
+.pytest_cache/
 .mypy_cache/
