@@ -289,10 +289,9 @@ class CommandProcessor:
         source_dir = Config.get_source_directory()
         abs_paths = self.config.get_absolute_paths()
 
-        matched = False
+        dsymed = False
         for source_rel, target_str in abs_paths.items():
             if fnmatch.fnmatch(source_rel, pattern):
-                matched = True
                 source_path = source_dir / source_rel
                 target_path = Path(target_str)
 
@@ -307,11 +306,14 @@ class CommandProcessor:
 
                 _safe_move_dir(source_path, target_path)
                 self.config.remove_from_paths(target_path)
-                self.config.write()
+                dsymed = True
+
+                print(f"dsyming from {BLUE}{BOLD}{source_path}{
+                    RESET} to {BLUE}{BOLD}{target_path}{RESET}")
 
                 self._cleanup_empty_groups(source_dir, source_rel)
 
-        if matched:
+        if dsymed:
             self.config.write()
         else:
             print_err(
