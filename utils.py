@@ -5,7 +5,7 @@ import shutil
 from typing import Optional
 
 
-def _get_home_dir() -> Path:
+def get_home_dir() -> Path:
     sudo_user = os.environ.get("SUDO_USER")
     if sudo_user:
         return Path(f"/home/{sudo_user}")
@@ -13,7 +13,7 @@ def _get_home_dir() -> Path:
 
 
 def expand_path(path: Path) -> Path:
-    home = _get_home_dir()
+    home = get_home_dir()
     path_str = str(path)
     if path_str.startswith("~"):
         return home / path_str[2:] if len(path_str) > 1 else home
@@ -21,7 +21,7 @@ def expand_path(path: Path) -> Path:
 
 
 def unexpand_path(path: Path) -> Path:
-    home = _get_home_dir()
+    home = get_home_dir()
     path_str = str(path.absolute())
     home_str = str(home)
     if path_str.startswith(home_str):

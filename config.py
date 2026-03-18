@@ -1,6 +1,8 @@
 import os
 import pathlib
+from utils import get_home_dir
 from typing import Optional
+import tomllib
 
 
 class Config:
@@ -15,7 +17,7 @@ class Config:
     def _config_path() -> pathlib.Path:
         source_dir = os.environ.get("easy_sym_source")
         if source_dir is None:
-            home = Config._get_home_dir()
+            home = get_home_dir()
             source_dir = str(home / "easy_syms")
 
         meta_name = os.environ.get(
@@ -23,17 +25,10 @@ class Config:
         return pathlib.Path(source_dir) / meta_name
 
     @staticmethod
-    def _get_home_dir() -> pathlib.Path:
-        sudo_user = os.environ.get("SUDO_USER")
-        if sudo_user:
-            return pathlib.Path(f"/home/{sudo_user}")
-        return pathlib.Path.home()
-
-    @staticmethod
     def get_source_directory() -> pathlib.Path:
         source_dir = os.environ.get("easy_sym_source")
         if source_dir is None:
-            home = Config._get_home_dir()
+            home = get_home_dir()
             return home / "easy_syms"
         return pathlib.Path(source_dir)
 
@@ -52,8 +47,6 @@ class Config:
 
         if not config_path.exists():
             return config
-
-        import tomllib
 
         with open(config_path, "rb") as f:
             data = tomllib.load(f)
