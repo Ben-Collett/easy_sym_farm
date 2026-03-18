@@ -31,14 +31,15 @@ def unexpand_path(path: Path) -> Path:
 
 
 def absolute_path(path: str | Path) -> Path:
-    if isinstance(path, Path):
-        path = str(path.absolute())
+    path = Path(path).expanduser()
 
-    if path.startswith("~"):
-        return expand_path(Path(path))
-    if os.path.isabs(path):
-        return Path(path)
-    return Path.cwd() / path
+    if path.is_absolute():
+        base = path
+    else:
+        base = Path.cwd() / path
+
+    # Collapse "." and ".." without resolving symlinks
+    return Path(os.path.normpath(str(base)))
 
 
 def suppress_errors(callback, *args, **kwargs):

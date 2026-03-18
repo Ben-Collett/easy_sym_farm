@@ -1,7 +1,7 @@
 import fnmatch
 from pathlib import Path
 import shutil
-from utils import print_err, delete_path, suppress_errors
+from utils import print_err, delete_path, suppress_errors, absolute_path
 from ansii import RED, RESET, BLUE, BOLD, GREEN
 import sys
 import subprocess
@@ -139,6 +139,7 @@ class CommandProcessor:
                         subprocess.run(notify_cmd, shell=True)
 
     def add(self, path: Path) -> None:
+        path = absolute_path(path)
         source_dir = Config.get_source_directory()
         source_path = source_dir / path.name
         if source_path.resolve() == path.resolve():
@@ -167,6 +168,7 @@ class CommandProcessor:
         self.config.write()
 
     def add_path_and_group(self, path: Path, group_path: str) -> None:
+        path = absolute_path(path)
         source_dir = Config.get_source_directory()
 
         if ".." in group_path:
