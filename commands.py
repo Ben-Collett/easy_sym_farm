@@ -12,6 +12,15 @@ from git_wrapper import GitPushStatus, GitWrapper
 from linker import link, unlink, LinkData
 
 
+def _guard_against_adding_inside_source(path: Path, source_dir: Path):
+    if path.resolve().is_relative_to(source_dir.resolve()):
+        print_err(
+            f"{RED}{BOLD}ERROR{RESET}{RED}: cannot add path that is inside source directory {
+                BLUE}{BOLD}{source_dir}{RESET}"
+        )
+        exit(1)
+
+
 def _safe_move_dir(origin: Path, target: Path):
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -141,6 +150,7 @@ class CommandProcessor:
     def add(self, path: Path) -> None:
         path = absolute_path(path)
         source_dir = Config.get_source_directory()
+        _guard_against_adding_inside_source(path, source_dir)
         source_path = source_dir / path.name
         if source_path.resolve() == path.resolve():
             print("already linked")
@@ -170,6 +180,8 @@ class CommandProcessor:
     def add_path_and_group(self, path: Path, group_path: str) -> None:
         path = absolute_path(path)
         source_dir = Config.get_source_directory()
+
+        _guard_against_adding_inside_source(path, source_dir)
 
         if ".." in group_path:
             group_parts = group_path.split("/")
