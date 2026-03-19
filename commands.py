@@ -10,6 +10,7 @@ import time
 from config import Config
 from git_wrapper import GitPushStatus, GitWrapper
 from linker import link, unlink, LinkData
+from typing import Optional
 
 
 def _guard_against_adding_inside_source(path: Path, source_dir: Path):
@@ -342,10 +343,123 @@ class CommandProcessor:
             if group_dir.exists() and not any(group_dir.iterdir()):
                 try:
                     group_dir.rmdir()
-                    print(f"dsym: removed empty group {
-                          BLUE}{BOLD}{group_dir}{RESET}")
+                    print(f"removed empty group {BLUE}{
+                          BOLD}{group_dir}{RESET}")
                 except OSError:
                     break
             else:
                 break
             parent = parent.parent
+
+    def regroup(self, path: str, new_group: Optional[str] = None) -> None:
+        source_dir = Config.get_source_directory()
+        old_source_path = source_dir / path
+
+        if not old_source_path.exists():
+            print_err(
+                f"{RED}{BOLD}ERROR{RESET}{RED}: path does not exist in source directory: {
+                    BLUE}{BOLD}{path}{RESET}"
+            )
+            exit(1)
+
+        filename = Path(path).name
+        if new_group:
+            new_rel = f"{new_group}/{filename}"
+        else:
+            new_rel = filename
+
+        new_source_path = source_dir / new_rel
+        if new_source_path.exists():
+            counter = 1
+            stem = Path(filename).stem
+            suffix = Path(filename).suffix
+            while new_source_path.exists():
+                if suffix:
+                    new_rel = (
+                        f"{new_group}/{stem}_{counter}{suffix}"
+                        if new_group
+                        else f"{stem}_{counter}{suffix}"
+                    )
+                else:
+                    new_rel = (
+                        f"{new_group}/{stem}_{counter}"
+                        if new_group
+                        else f"{stem}_{counter}"
+                    )
+                new_source_path = source_dir / new_rel
+                counter += 1
+
+        try:
+            new_source_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(
+                str(old_source_path.absolute()), str(
+                    new_source_path.absolute())
+            )
+        except PermissionError as e:
+            print_err(
+                f"{RED}{BOLD}PERMISSION DENIED{RESET}{RED}: can't move {BLUE}{BOLD}{
+                    old_source_path.absolute()}{RED} to {BLUE}{BOLD}{new_source_path.absolute()}{RED} {RESET}"
+            )
+            exit(1)
+        except FileNotFoundError as e:
+            print_err(
+                f"{RED}{BOLD}FILE NOT FOUND{RESET}{RED}: can't move {
+                    BLUE}{BOLD}{old_source_path.absolute()}{RED} {RESET}"
+            )
+            exit(1)
+        except OSError as e:
+            print_err(
+                f"{RED}{BOLD}ERROR{RESET}{RED}: can't move {BLUE}{BOLD}{old_source_path.absolute(
+                )}{RED} to {BLUE}{BOLD}{new_source_path.absolute()}{RED}: {e}{RESET}"
+            )
+            exit(1)
+
+        if path in self.config.paths:
+            target_str = self.config.paths[path]
+            target_path = absolute_path(target_str)
+            if (
+                target_path.is_symlink()
+                and target_path.resolve() == old_source_path.resolve()
+            ):
+                try:
+                    target_path.unlink()
+                    target_path.symlink_to(new_source_path)
+                except PermissionError:
+                    print_err(
+                        f"{RED}{BOLD}PERMISSION DENIED{RESET}{RED}: can't update symlink at {
+                            BLUE}{BOLD}{target_path.absolute()}{RED} {RESET}"
+                    )
+                    exit(1)
+                except OSError as e:
+                    print_err(
+                        f"{RED}{BOLD}ERROR{RESET}{RED}: can't update symlink at {
+                            BLUE}{BOLD}{target_path.absolute()}{RED}: {e}{RESET}"
+                    )
+                    exit(1)
+
+            new_paths = {}
+            for k, v in self.config._paths.items():
+                if k == path:
+                    new_paths[new_rel] = v
+                else:
+                    new_paths[k] = v
+            self.config._paths = new_paths
+
+        self._cleanup_empty_groups(source_dir, path)
+        self.config.write()
+
+        old_group = Path(path).parent
+        if old_group != Path("."):
+            old_group_dir = source_dir / old_group
+            if old_group_dir.exists() and not any(old_group_dir.iterdir()):
+                try:
+                    old_group_dir.rmdir()
+                    print(
+                        f"regroup: removed empty group {
+                            BLUE}{BOLD}{old_group_dir}{RESET}"
+                    )
+                except OSError:
+                    pass
+
+        print(f"regrouped {BLUE}{BOLD}{path}{
+              RESET} to {BLUE}{BOLD}{new_rel}{RESET}")
