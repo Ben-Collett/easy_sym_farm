@@ -11,6 +11,7 @@ class Config:
     push_notify_command: Optional[str]
     retry_delays_ms: int
     max_attempts: int
+    group_order_override: list[str]
     _paths: dict[str, str]
 
     @staticmethod
@@ -20,8 +21,7 @@ class Config:
             home = get_home_dir()
             source_dir = str(home / "easy_syms")
 
-        meta_name = os.environ.get(
-            "easy_sym_meta_name", "easy_env_sym_data.toml")
+        meta_name = os.environ.get("easy_sym_meta_name", "easy_env_sym_data.toml")
         return pathlib.Path(source_dir) / meta_name
 
     @staticmethod
@@ -43,6 +43,7 @@ class Config:
         config.notify_on_error_only = True
         config.retry_delays_ms = 6000
         config.max_attempts = 10
+        config.group_order_override = []
         config._paths = {}
 
         if not config_path.exists():
@@ -60,6 +61,8 @@ class Config:
             if "push-notify-command" in general:
                 val = general["push-notify-command"]
                 config.push_notify_command = val if val else None
+            if "group-order-override" in general:
+                config.group_order_override = general["group-order-override"]
 
         if "network" in data:
             network = data["network"]
@@ -130,21 +133,74 @@ class Config:
 
         with open(config_path, "w") as f:
             f.write("[general]\n")
-            f.write(
-                f"no-new-files = {self._serialize_list(self.no_new_files)}\n")
-            f.write(
-                f"no-update-on = {self._serialize_list(self.no_update_on)}\n")
+            f.write(f"no-new-files = {self._serialize_list(self.no_new_files)}\n")
+            f.write(f"no-update-on = {self._serialize_list(self.no_update_on)}\n")
             cmd = self.push_notify_command
             if cmd:
                 f.write(f'push-notify-command = "{cmd}"\n')
+            if self.group_order_override:
+                f.write(
+                    f"group-order-override = {self._serialize_list(self.group_order_override)}\n"
+                )
 
             f.write("\n[network]\n")
             f.write(f"retry-delays-ms = {self.retry_delays_ms}\n")
             f.write(f"max-attempts = {self.max_attempts}\n")
 
             f.write("\n[paths]\n")
-            for source, target in self._paths.items():
-                f.write(f'"{source}" = "{target}"\n')
+            ordered_groups = self._get_ordered_groups()
+            for i, group_name in enumerate(ordered_groups):
+                if i > 0:
+                    f.write("\n")
+                f.write(f"# {group_name}\n")
+                sorted_paths = sorted(
+                    self._get_grouped_paths()[group_name].items(),
+                    key=lambda x: self._path_sort_key(x[0]),
+                )
+                for source, target in sorted_paths:
+                    f.write(f'"{source}" = "{target}"\n')
+
+    def _get_grouped_paths(self) -> dict[str, dict[str, str]]:
+        groups: dict[str, dict[str, str]] = {}
+        for source, target in self._paths.items():
+            group_name = self._get_top_level_group(source)
+            if group_name not in groups:
+                groups[group_name] = {}
+            groups[group_name][source] = target
+        return groups
+
+    def _get_top_level_group(self, path: str) -> str:
+        if "/" in path:
+            return path.split("/")[0]
+        return "misc."
+
+    def _get_ordered_groups(self) -> list[str]:
+        groups = self._get_grouped_paths()
+        override = self.group_order_override
+
+        ordered = []
+        remaining = []
+        has_misc = False
+        misc_in_override = "misc." in override
+
+        for group_name in override:
+            if group_name in groups:
+                ordered.append(group_name)
+
+        for group in groups:
+            if group == "misc.":
+                has_misc = True
+            elif group not in override:
+                remaining.append(group)
+
+        remaining.sort(key=lambda g: g.lower())
+        result = ordered + remaining
+        if has_misc and not misc_in_override:
+            result.append("misc.")
+        return result
+
+    def _path_sort_key(self, path: str) -> tuple:
+        return tuple(path.split("/"))
 
     def _serialize_list(self, lst: list[str]) -> str:
         if not lst:

@@ -41,7 +41,8 @@ class Parser:
                 self.processor.add(path)
         elif command == "add-to-git-ignore":
             if not rest:
-                print("Error: 'add-to-git-ignore' requires a pattern", file=sys.stderr)
+                print("Error: 'add-to-git-ignore' requires a pattern",
+                      file=sys.stderr)
                 sys.exit(1)
             self.processor.add_to_git_ignore(rest[0])
         elif command == "remove-from-git-ignore":
@@ -54,7 +55,8 @@ class Parser:
             self.processor.remove_from_git_ignore(rest[0])
         elif command == "add-to-no-update":
             if not rest:
-                print("Error: 'add-to-no-update' requires a pattern", file=sys.stderr)
+                print("Error: 'add-to-no-update' requires a pattern",
+                      file=sys.stderr)
                 sys.exit(1)
             self.processor.add_to_no_update(rest[0])
         elif command == "remove-from-no-update":
@@ -66,7 +68,8 @@ class Parser:
             self.processor.remove_from_no_update(rest[0])
         elif command == "add-to-no-new-files":
             if not rest:
-                print("Error: 'add-to-no-new-files' requires a path", file=sys.stderr)
+                print("Error: 'add-to-no-new-files' requires a path",
+                      file=sys.stderr)
                 sys.exit(1)
             self.processor.add_to_no_new_files(Path(rest[0]))
         elif command == "remove-from-no-new-files":
@@ -91,6 +94,8 @@ class Parser:
                 print("Error: 'dsym' requires a pattern", file=sys.stderr)
                 sys.exit(1)
             self.processor.dsym(rest[0])
+        elif command == "update-sym-data":
+            self.processor.update_sym_data()
         else:
             print(f"Unknown command: {command}", file=sys.stderr)
             self.print_help()
@@ -119,6 +124,7 @@ class Parser:
     {GREEN}remove-from-no-new-files <path>{RESET} -> Removes a path from the no-new-files list
     {GREEN}set <tag> <setting> <value(s)>{RESET} -> Set any value from the config
     {GREEN}dsym <pattern>{RESET} -> Dematerialize symlink: removes symlink, copies file to target, removes from paths
+    {GREEN}update-sym-data{RESET} -> Read, parse, and re-serialize the sym data
 """)
 
 

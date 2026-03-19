@@ -15,8 +15,11 @@ from linker import link, unlink, LinkData
 def _guard_against_adding_inside_source(path: Path, source_dir: Path):
     if path.resolve().is_relative_to(source_dir.resolve()):
         print_err(
-            f"{RED}{BOLD}ERROR{RESET}{RED}: cannot add path that is inside source directory {
-                BLUE}{BOLD}{source_dir}{RESET}"
+            f"{RED}{BOLD}ERROR{RESET}{
+                RED
+            }: cannot add path that is inside source directory {BLUE}{BOLD}{source_dir}{
+                RESET
+            }"
         )
         exit(1)
 
@@ -285,6 +288,9 @@ class CommandProcessor:
         self.config.update(tag, setting, *values)
         self.config.write()
 
+    def update_sym_data(self) -> None:
+        self.config.write()
+
     def dsym(self, pattern: str) -> None:
         source_dir = Config.get_source_directory()
         abs_paths = self.config.get_absolute_paths()
@@ -300,7 +306,8 @@ class CommandProcessor:
                 elif target_path.exists():
                     print_err(
                         f"{RED}Target {BLUE}{BOLD}{target_path}{
-                            RED} exists and is not a symlink, skipping"
+                            RED
+                        } exists and is not a symlink, skipping"
                     )
                     continue
 
@@ -308,8 +315,11 @@ class CommandProcessor:
                 self.config.remove_from_paths(target_path)
                 dsymed = True
 
-                print(f"dsyming from {BLUE}{BOLD}{source_path}{
-                    RESET} to {BLUE}{BOLD}{target_path}{RESET}")
+                print(
+                    f"dsyming from {BLUE}{BOLD}{source_path}{RESET} to {BLUE}{BOLD}{
+                        target_path
+                    }{RESET}"
+                )
 
                 self._cleanup_empty_groups(source_dir, source_rel)
 
